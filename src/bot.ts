@@ -26,57 +26,56 @@ bot.start((ctx) => {
 });
 
 bot.on('video', async (ctx) => {
-  const fileId = ctx.message.video.file_id;
-  const caption = ctx.message.caption || ''; // 🔥 Extract the original caption (if any)
-  const fileLink = await ctx.telegram.getFileLink(fileId);
-  const inputName = `input_${uuidv4()}.mp4`;
-  const inputPath = path.join('vedious', inputName);
-
-  // Ensure vedious/ directory exists
-  const vediousDir = path.resolve('vedious');
-  if (!fs.existsSync(vediousDir)) {
-    fs.mkdirSync(vediousDir, { recursive: true });
-  }
-
-  ctx.reply('📥 Downloading video...');
-
-  const res = await fetch(fileLink.href);
-  const webStream = res.body;
-
-  if (!webStream) {
-    ctx.reply('❌ Could not fetch video.');
-    return;
-  }
-
-  const nodeStream = Readable.fromWeb(webStream as any);
-  const fileStream = fs.createWriteStream(inputPath);
-
-  await new Promise((resolve, reject) => {
-    nodeStream.pipe(fileStream);
-    nodeStream.on('error', reject);
-    fileStream.on('finish', () => resolve(undefined));
-  });
-
-  ctx.reply('⚙️ Processing with FFmpeg...');
-
   try {
-    const outputPath = await processVideo(inputPath, LOGO_PATH, OVERLAY_PATH, OUTRO_PATH);
+    const fileId = ctx.message.video.file_id;
+    const caption = ctx.message.caption || '';
+    const fileLink = await ctx.telegram.getFileLink(fileId);
+    const inputName = `input_${uuidv4()}.mp4`;
+    const inputPath = path.join('vedious', inputName);
 
-    await ctx.telegram.sendVideo(DESTINATION_ID, { 
-      source: fs.createReadStream(outputPath) 
-    }, { 
-      caption 
+    // Ensure vedious/ directory exists
+    const vediousDir = path.resolve('vedious');
+    if (!fs.existsSync(vediousDir)) {
+      fs.mkdirSync(vediousDir, { recursive: true });
+    }
+
+    await ctx.reply('📥 Downloading video...');
+
+    const res = await fetch(fileLink.href);
+    if (!res.ok || !res.body) {
+      await ctx.reply('❌ Could not fetch video stream.');
+      return;
+    }
+
+    const nodeStream = Readable.fromWeb(res.body as any);
+    const fileStream = fs.createWriteStream(inputPath);
+
+    await new Promise<void>((resolve, reject) => {
+      nodeStream.pipe(fileStream);
+      nodeStream.on('error', reject);
+      fileStream.on('finish', () => resolve());
     });
 
-    ctx.reply('✅ Processed and sent!');
+    await ctx.reply('⚙️ Processing with FFmpeg...');
+
+    const outputPath = await processVideo(inputPath, LOGO_PATH, OVERLAY_PATH, OUTRO_PATH);
+
+    await ctx.telegram.sendVideo(
+      ctx.chat.id, // Send back to user who forwarded or sent the video
+      { source: fs.createReadStream(outputPath) },
+      { caption }
+    );
+
+    await ctx.reply('✅ Processed and sent!');
+
     fs.unlinkSync(outputPath);
-  } catch (err) {
-    console.error(err);
-    ctx.reply('❌ Failed to process the video.');
-  } finally {
-    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+    fs.unlinkSync(inputPath);
+  } catch (error) {
+    console.error('Video processing failed:', error);
+    await ctx.reply('❌ An error occurred during processing.');
   }
 });
+
 
 
 bot.launch();
