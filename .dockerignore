@@ -1,0 +1,7 @@
+node_modules
+.pnpm-store
+*.log
+dist
+temp
+output
+vedious
