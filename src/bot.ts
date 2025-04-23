@@ -26,57 +26,45 @@ bot.start((ctx) => {
 });
 
 bot.on('video', async (ctx) => {
-  try {
     const fileId = ctx.message.video.file_id;
-    const caption = ctx.message.caption || '';
     const fileLink = await ctx.telegram.getFileLink(fileId);
     const inputName = `input_${uuidv4()}.mp4`;
-    const inputPath = path.join('vedious', inputName);
-
-    // Ensure vedious/ directory exists
-    const vediousDir = path.resolve('vedious');
-    if (!fs.existsSync(vediousDir)) {
-      fs.mkdirSync(vediousDir, { recursive: true });
-    }
-
-    await ctx.reply('📥 Downloading video...');
-
+    const inputPath = path.join('videos', inputName);
+  
+    ctx.reply('📥 Downloading video...');
+  
     const res = await fetch(fileLink.href);
-    if (!res.ok || !res.body) {
-      await ctx.reply('❌ Could not fetch video stream.');
+    const webStream = res.body;
+  
+    if (!webStream) {
+      ctx.reply('❌ Could not fetch video.');
       return;
     }
-
-    const nodeStream = Readable.fromWeb(res.body as any);
+  
+    const nodeStream = Readable.fromWeb(webStream as any); // Convert to Node.js stream
     const fileStream = fs.createWriteStream(inputPath);
-
-    await new Promise<void>((resolve, reject) => {
+  
+    await new Promise((resolve, reject) => {
       nodeStream.pipe(fileStream);
       nodeStream.on('error', reject);
-      fileStream.on('finish', () => resolve());
+      fileStream.on('finish', () => resolve(undefined));
     });
+  
 
-    await ctx.reply('⚙️ Processing with FFmpeg...');
+  ctx.reply('⚙️ Processing with FFmpeg...');
 
+  try {
     const outputPath = await processVideo(inputPath, LOGO_PATH, OVERLAY_PATH, OUTRO_PATH);
-
-    await ctx.telegram.sendVideo(
-      ctx.chat.id, // Send back to user who forwarded or sent the video
-      { source: fs.createReadStream(outputPath) },
-      { caption }
-    );
-
-    await ctx.reply('✅ Processed and sent!');
-
+    await ctx.telegram.sendVideo(DESTINATION_ID, { source: outputPath });
+    ctx.reply('✅ Processed and sent!');
     fs.unlinkSync(outputPath);
-    fs.unlinkSync(inputPath);
-  } catch (error) {
-    console.error('Video processing failed:', error);
-    await ctx.reply('❌ An error occurred during processing.');
+  } catch (err) {
+    console.error(err);
+    ctx.reply('❌ Failed to process the video.');
+  } finally {
+    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
   }
 });
-
-
 
 bot.launch();
 console.log('🤖 Bot is running...');
