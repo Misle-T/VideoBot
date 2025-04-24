@@ -9,7 +9,7 @@ import { Context } from 'telegraf';
 dotenv.config();
 
 
-const DESTINATION_ID = '-1001929111153';
+const DESTINATION_ID = process.env.DESTINATION_ID || ''; // Replace with your destination chat ID
 
 
 const LOGO_PATH = 'assets/logo.png';
@@ -69,6 +69,11 @@ bot.on('video', async (ctx:Context) => {
 
   try {
     const outputPath = await processVideo(inputPath, LOGO_PATH, OVERLAY_PATH, OUTRO_PATH);
+
+    if (!DESTINATION_ID) {
+      ctx.reply('❌ Destination ID is not configured.');
+      return;
+    }
 
     await ctx.telegram.sendVideo(DESTINATION_ID, { 
       source: fs.createReadStream(outputPath) 
