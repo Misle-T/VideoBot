@@ -9,7 +9,7 @@ import { Context } from 'telegraf';
 dotenv.config();
 
 
-const DESTINATION_ID = process.env.DESTINATION_ID || ''; // Replace with your destination chat ID
+const DESTINATION_ID = process.env.DESTINATION_ID; // Replace with your destination chat ID
 
 
 const LOGO_PATH = 'assets/logo.png';
