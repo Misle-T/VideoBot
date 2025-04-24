@@ -1,10 +1,11 @@
-import { Telegraf } from 'telegraf';
+const { Telegraf } = require('telegraf');
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { processVideo } from './ffmpegUtils';
 import { Readable } from 'stream';
 import dotenv from "dotenv";
+import { Context } from 'telegraf';
 dotenv.config();
 
 
@@ -21,14 +22,18 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
-bot.start(async (ctx) => {
+bot.start(async (ctx:Context) => {
   try {
     await ctx.reply('🎥 Send me a video and I’ll watermark it and add an outro!');
   } catch (err) {
     console.error('Failed to send start reply:', err);
   }
 });
-bot.on('video', async (ctx) => {
+bot.on('video', async (ctx:Context) => {
+  if (!ctx.message || !('video' in ctx.message)) {
+    ctx.reply('❌ No video found in the message.');
+    return;
+  }
   const fileId = ctx.message.video.file_id;
   const caption = ctx.message.caption || ''; // 🔥 Extract the original caption (if any)
   const fileLink = await ctx.telegram.getFileLink(fileId);
