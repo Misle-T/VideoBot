@@ -21,7 +21,7 @@ export const processVideo = (
       .input(textOverlayPath)
       .complexFilter([
         "[0:v][1:v] overlay=10:10 [v1]",
-        "[v1][2:v] overlay=main_w-overlay_w-10:main_h-overlay_h-10"
+          "[v1] drawtext=text='Your Text Here':fontcolor=white:fontsize=24:x=mod(t*100\,w-text_w):y=mod(t*50\,h-text_h) [v2]"
       ])
       .output(intermediatePath)
       .on('end', () => {
