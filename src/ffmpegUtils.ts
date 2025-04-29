@@ -1,121 +1,99 @@
+// import ffmpeg from 'fluent-ffmpeg';
+// import path from 'path';
+// import fs from 'fs';
+// import { v4 as uuidv4 } from 'uuid';
 
-import ffmpeg from 'fluent-ffmpeg';
-import fs from 'fs';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+// export async function processVideo(inputPath: string): Promise<string> {
+//   const id = uuidv4();
+//   const baseName = path.basename(inputPath, path.extname(inputPath));
 
-export const processVideo = (
-  inputPath: string,
-  logoPath: string,
-  textOverlayPath: string,
-  outroImagePath: string
-): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const outputDir = path.resolve('output');
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
+//   const normalizedPath = path.resolve(`output/${baseName}_normalized.mp4`);
+//   const screenshotPath = path.resolve(`screenshots/${baseName}_thumb.jpg`);
+//   const bannerPath = path.resolve(`output/${baseName}_banner.mp4`);
+//   const finalPath = path.resolve(`output/${baseName}_final.mp4`);
 
-    const id = uuidv4();
-    const intermediatePath = `output/intermediate_${id}.mp4`;
-    const outroVideo = `output/outro_${id}.mp4`;
-    const finalOutput = `output/final_${id}.mp4`;
+//   await ensureDirectories();
 
-    // 1. Add both logo and text overlay
-    ffmpeg(inputPath)
-      .input(logoPath)
-      .input(textOverlayPath)
-        .complexFilter([
-            "[0:v][1:v] overlay=10:10 [v1]",
-            "[v1] drawtext=text='www.Pornosmezzati.net':fontcolor=black:fontsize=30:x=mod(t*100\\,w-text_w):y=mod(t*50\\,h-text_h) [v2]"
-        ], 'v2')
-      .output(intermediatePath)
-      .on('end', () => {
-        // 2. Convert outro image to short video
-        ffmpeg(outroImagePath)
-          .loop(1)
-          .outputOptions('-t 3') // 3-second outro
-          .save(outroVideo)
-          .on('end', () => {
-            const listFile = `output/concat_${id}.txt`;
-            fs.writeFileSync(listFile, `file '${path.resolve(intermediatePath)}'\nfile '${path.resolve(outroVideo)}'`);
+//   await generateScreenshot(inputPath, screenshotPath);
+//   await normalizeVideo(inputPath, normalizedPath);
+//   await generateBanner(normalizedPath, bannerPath);
+//   await concatenateVideos([normalizedPath, bannerPath], finalPath);
 
-            // 3. Concatenate both
-            ffmpeg()
-              .input(listFile)
-              .inputOptions(['-f', 'concat', '-safe', '0'])
-              .outputOptions('-c', 'copy')
-              .save(finalOutput)
-              .on('end', () => {
-                fs.unlinkSync(intermediatePath);
-                fs.unlinkSync(outroVideo);
-                fs.unlinkSync(listFile);
-                resolve(finalOutput);
-              })
-              .on('error', reject);
-          })
-          .on('error', reject);
-      })
-      .on('error', reject)
-      .run();
-  });
-};
-/*
+//   return finalPath;
+// }
 
-import ffmpeg from 'fluent-ffmpeg';
-import fs from 'fs';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+// async function ensureDirectories() {
+//   const dirs = ['output', 'screenshots'];
+//   for (const dir of dirs) {
+//     if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+//   }
+// }
 
-export const processVideo = (
-  inputPath: string,
-  logoPath: string,
-  textOverlayPath: string,
-  outroImagePath: string
-): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const id = uuidv4();
-    const intermediatePath = `output/intermediate_${id}.mp4`;
-    const outroVideo = `output/outro_${id}.mp4`;
-    const finalOutput = `output/final_${id}.mp4`;
+// function generateScreenshot(inputPath: string, outputPath: string): Promise<void> {
+//   return new Promise((resolve, reject) => {
+//     ffmpeg(inputPath)
+//       .on('end', () => resolve())
+//       .on('error', reject)
+//       .screenshots({
+//         count: 1,
+//         timestamps: ['50%'],
+//         filename: path.basename(outputPath),
+//         folder: path.dirname(outputPath),
+//         size: '320x240',
+//       });
+//   });
+// }
 
-    // 1. Add both logo and text overlay
-    ffmpeg(inputPath)
-      .input(logoPath)
-      .input(textOverlayPath)
-      .complexFilter([
-        "[0:v][1:v] overlay=10:10 [v1]",
-          "[v1] drawtext=text='www.Pornosmezzati.net':fontcolor=white:fontsize=24:x=mod(t*100\,w-text_w):y=mod(t*50\,h-text_h) [v2]"
-      ])
-      .output(intermediatePath)
-      .on('end', () => {
-        // 2. Convert outro image to short video
-        ffmpeg(outroImagePath)
-          .loop(1)
-          .outputOptions('-t 3') // 3-second outro
-          .save(outroVideo)
-          .on('end', () => {
-            const listFile = `output/concat_${id}.txt`;
-            fs.writeFileSync(listFile, `file '${path.resolve(intermediatePath)}'\nfile '${path.resolve(outroVideo)}'`);
+// function normalizeVideo(inputPath: string, outputPath: string): Promise<void> {
+//   return runFFmpeg(
+//     ffmpeg(inputPath)
+//       .videoCodec('libx264')
+//       .audioCodec('aac')
+//       .audioBitrate('128k')
+//       .videoBitrate('1500k')
+//       .outputOptions('-preset veryfast')
+//       .save(outputPath)
+//   );
+// }
 
-            // 3. Concatenate both
-            ffmpeg()
-              .input(listFile)
-              .inputOptions(['-f', 'concat', '-safe', '0'])
-              .outputOptions('-c', 'copy')
-              .save(finalOutput)
-              .on('end', () => {
-                fs.unlinkSync(intermediatePath);
-                fs.unlinkSync(outroVideo);
-                fs.unlinkSync(listFile);
-                resolve(finalOutput);
-              })
-              .on('error', reject);
-          })
-          .on('error', reject);
-      })
-      .on('error', reject)
-      .run();
-  });
-};
-*/
+// function generateBanner(inputPath: string, outputPath: string): Promise<void> {
+//   const logo = path.resolve('assets/logo.png');
+//   const overlayText = path.resolve('assets/overlay_text.png');
+
+//   return runFFmpeg(
+//     ffmpeg(inputPath)
+//       .complexFilter([
+//         `[0:v][1:v] overlay=10:10 [tmp]; [tmp][2:v] overlay=W-w-10:H-h-10`,
+//       ])
+//       .input(logo)
+//       .input(overlayText)
+//       .videoCodec('libx264')
+//       .outputOptions('-t 3') // only take 3 seconds for the banner
+//       .save(outputPath)
+//   );
+// }
+
+// function concatenateVideos(inputs: string[], outputPath: string): Promise<void> {
+//   const listPath = path.resolve('output/concat_list.txt');
+//   const listContent = inputs.map(file => `file '${path.resolve(file)}'`).join('\n');
+//   fs.writeFileSync(listPath, listContent);
+
+//   return runFFmpeg(
+//     ffmpeg()
+//       .input(listPath)
+//       .inputOptions(['-f', 'concat', '-safe', '0'])
+//       .outputOptions(['-c', 'copy'])
+//       .save(outputPath)
+//   );
+// }
+
+// function runFFmpeg(command: ffmpeg.FfmpegCommand): Promise<void> {
+//   return new Promise((resolve, reject) => {
+//     command
+//       .on('end', () => resolve())
+//       .on('error', (err) => {
+//         console.error('FFmpeg failed:', err.message);
+//         reject(new Error('FFmpeg processing failed'));
+//       });
+//   });
+// }

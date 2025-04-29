@@ -1,98 +1,75 @@
-const { Telegraf } = require('telegraf');
+import { Telegraf } from 'telegraf';
+import dotenv from 'dotenv';
 import fs from 'fs';
+import { downloadFile } from './download'; // Adjust the import path as necessary
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import { processVideo } from './ffmpegUtils';
-import { Readable } from 'stream';
-import dotenv from "dotenv";
-import { Context } from 'telegraf';
+import { exec } from 'child_process';
+
 dotenv.config();
-
-
-const DESTINATION_ID = process.env.DESTINATION_ID; // Replace with your destination chat ID
-
-
-const LOGO_PATH = 'assets/logo.png';
-const OVERLAY_PATH = 'assets/overlay_text.png';
-const OUTRO_PATH = 'assets/logo.png'; // Assuming the outro is the same as the logo
-
-if (!process.env.TELEGRAM_BOT_TOKEN) {
+const token = process.env.TELEGRAM_BOT_TOKEN;
+if (!token) {
   throw new Error('TELEGRAM_BOT_TOKEN is not defined in the environment variables.');
 }
+const bot = new Telegraf(token); // Replace with real bot token
 
-const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+const VIDEOS_FOLDER = 'videos/';
+const OUTPUT_FOLDER = 'outputs/';
+const SCREENSHOT_FOLDER = 'screenshots/';
 
-bot.start(async (ctx:Context) => {
-  try {
-    await ctx.reply('🎥 Send me a video and I’ll watermark it and add an outro!');
-  } catch (err) {
-    console.error('Failed to send start reply:', err);
+// Ensure the folders exist
+[VIDEOS_FOLDER, OUTPUT_FOLDER, SCREENSHOT_FOLDER].forEach((folder) => {
+  if (!fs.existsSync(folder)) {
+    fs.mkdirSync(folder);
   }
 });
-bot.on('video', async (ctx:Context) => {
-  if (!ctx.message || !('video' in ctx.message)) {
-    ctx.reply('❌ No video found in the message.');
-    return;
-  }
-  const fileId = ctx.message.video.file_id;
-  const caption = ctx.message.caption || ''; // 🔥 Extract the original caption (if any)
-  const fileLink = await ctx.telegram.getFileLink(fileId);
-  const inputName = `input_${uuidv4()}.mp4`;
-  const inputPath = path.join('vedious', inputName);
 
-  // Ensure vedious/ directory exists
-  const vediousDir = path.resolve('vedious');
-  if (!fs.existsSync(vediousDir)) {
-    fs.mkdirSync(vediousDir, { recursive: true });
-  }
-
-  ctx.reply('📥 Downloading video...');
-
-  const res = await fetch(fileLink.href);
-  const webStream = res.body;
-
-  if (!webStream) {
-    ctx.reply('❌ Could not fetch video.');
-    return;
-  }
-
-  const nodeStream = Readable.fromWeb(webStream as any);
-  const fileStream = fs.createWriteStream(inputPath);
-
-  await new Promise((resolve, reject) => {
-    nodeStream.pipe(fileStream);
-    nodeStream.on('error', reject);
-    fileStream.on('finish', () => resolve(undefined));
-  });
-
-  ctx.reply('⚙️ Processing with FFmpeg...');
+bot.on('video', async (ctx) => {
+  const video = ctx.message.video;
+  if (!video) return;
 
   try {
-    const outputPath = await processVideo(inputPath, LOGO_PATH, OVERLAY_PATH, OUTRO_PATH);
+    console.log('📥 Video received from', ctx.from.username || ctx.from.first_name);
 
-    if (!DESTINATION_ID) {
-      ctx.reply('❌ Destination ID is not configured.');
-      return;
-    }
+    const fileLink = await ctx.telegram.getFileLink(video.file_id);
+    console.log('🔗 File link:', fileLink.href);
 
-    await ctx.telegram.sendVideo(DESTINATION_ID, { 
-      source: fs.createReadStream(outputPath) 
-    }, { 
-      caption 
+    const downloadedPath = await downloadFile(fileLink.href);
+    console.log('📦 Downloaded to:', downloadedPath);
+
+    // Define paths for processed video and screenshot
+    const fileName = path.basename(downloadedPath, path.extname(downloadedPath));
+    const processedPath = path.join(OUTPUT_FOLDER, `${fileName}_final.mp4`);
+    const screenshotPath = path.join(SCREENSHOT_FOLDER, `${fileName}_thumb.jpg`);
+
+    // Call the shell script to process the video
+    const shellScriptPath = '/src/process_videos.sh'; // Adjust the path to your shell script
+    exec(`bash ${shellScriptPath}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error executing script: ${error.message}`);
+        return;
+      }
+
+      if (stderr) {
+        console.error(`Script STDERR: ${stderr}`);
+        return;
+      }
+
+      console.log(`Script Output: ${stdout}`);
+
+      // Send the screenshot and the processed video back to the user
+      ctx.replyWithPhoto({ source: screenshotPath }, { caption: 'Here is your screenshot!' });
+      ctx.replyWithVideo({ source: processedPath }, { caption: '✅ Here is your processed video!' });
+
+      // Optionally delete the processed files after sending them
+      fs.unlinkSync(downloadedPath); // Delete the original video
+      fs.unlinkSync(processedPath); // Delete the final video
+      fs.unlinkSync(screenshotPath); // Delete the screenshot
     });
-
-    ctx.reply('✅ Processed and sent!');
-    fs.unlinkSync(outputPath);
   } catch (err) {
-    console.error(err);
-    ctx.reply('❌ Failed to process the video.');
-  } finally {
-    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+    console.error('❌ Error processing video:', err);
+    await ctx.reply('❌ Failed to process video. Please try again later.');
   }
 });
 
 bot.launch();
-console.log('🤖 Bot is running...'); 
-
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+console.log('🤖 Bot is running...');
