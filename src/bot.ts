@@ -1,75 +1,79 @@
 import { Telegraf } from 'telegraf';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import { downloadFile } from './download'; // Adjust the import path as necessary
-import path from 'path';
+import * as dotenv from 'dotenv';
 import { exec } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 
 dotenv.config();
-const token = process.env.TELEGRAM_BOT_TOKEN;
-if (!token) {
-  throw new Error('TELEGRAM_BOT_TOKEN is not defined in the environment variables.');
-}
-const bot = new Telegraf(token); // Replace with real bot token
 
-const VIDEOS_FOLDER = 'videos/';
-const OUTPUT_FOLDER = 'outputs/';
-const SCREENSHOT_FOLDER = 'screenshots/';
+const bot = new Telegraf(process.env.BOT_TOKEN!);
+const CHANNEL_ID = process.env.CHANNEL_ID!;
 
-// Ensure the folders exist
-[VIDEOS_FOLDER, OUTPUT_FOLDER, SCREENSHOT_FOLDER].forEach((folder) => {
-  if (!fs.existsSync(folder)) {
-    fs.mkdirSync(folder);
+// Ensure directories exist
+const VIDEOS_FOLDER = 'videos';
+const OUTPUT_BASE = 'outputs';
+const SCREENSHOT_FOLDER = 'screenshots';
+
+[VIDEOS_FOLDER, OUTPUT_BASE, SCREENSHOT_FOLDER].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
+});
+
+bot.start((ctx) => {
+  ctx.reply('Welcome! Send me a video file and I will process it for the channel.');
 });
 
 bot.on('video', async (ctx) => {
-  const video = ctx.message.video;
-  if (!video) return;
-
   try {
-    console.log('📥 Video received from', ctx.from.username || ctx.from.first_name);
-
-    const fileLink = await ctx.telegram.getFileLink(video.file_id);
-    console.log('🔗 File link:', fileLink.href);
-
-    const downloadedPath = await downloadFile(fileLink.href);
-    console.log('📦 Downloaded to:', downloadedPath);
-
-    // Define paths for processed video and screenshot
-    const fileName = path.basename(downloadedPath, path.extname(downloadedPath));
-    const processedPath = path.join(OUTPUT_FOLDER, `${fileName}_final.mp4`);
-    const screenshotPath = path.join(SCREENSHOT_FOLDER, `${fileName}_thumb.jpg`);
-
-    // Call the shell script to process the video
-    const shellScriptPath = '/src/process_videos.sh'; // Adjust the path to your shell script
-    exec(`bash ${shellScriptPath}`, (error, stdout, stderr) => {
+    const message = ctx.update.message;
+    const fileId = message.video.file_id;
+    const fileName = `${Date.now()}_${message.video.file_name || 'video.mp4'}`;
+    const filePath = path.join(VIDEOS_FOLDER, fileName);
+    
+    // Download the video
+    ctx.reply('Downloading video...');
+    const fileLink = await ctx.telegram.getFileLink(fileId);
+    const response = await fetch(fileLink);
+    const fileData = await response.arrayBuffer();
+    
+    fs.writeFileSync(filePath, Buffer.from(fileData));
+    
+    ctx.reply('Video received! Processing...');
+    
+    // Process the video
+    exec(`bash process_videos.sh`, async (error, stdout, stderr) => {
       if (error) {
-        console.error(`Error executing script: ${error.message}`);
+        console.error(`Error: ${error.message}`);
+        ctx.reply('Error processing video');
         return;
       }
-
-      if (stderr) {
-        console.error(`Script STDERR: ${stderr}`);
-        return;
+      
+      // Find the processed video
+      const outputFileName = fileName.replace(/\.[^/.]+$/, '') + '_final.mp4';
+      const outputPath = path.join(OUTPUT_BASE, outputFileName);
+      
+      if (fs.existsSync(outputPath)) {
+        // Send to channel
+        await ctx.telegram.sendVideo(CHANNEL_ID, { source: fs.createReadStream(outputPath) });
+        ctx.reply('Video processed and sent to channel!');
+        
+        // Clean up
+        fs.unlinkSync(filePath);
+        fs.unlinkSync(outputPath);
+      } else {
+        ctx.reply('Processing completed but output file not found');
       }
-
-      console.log(`Script Output: ${stdout}`);
-
-      // Send the screenshot and the processed video back to the user
-      ctx.replyWithPhoto({ source: screenshotPath }, { caption: 'Here is your screenshot!' });
-      ctx.replyWithVideo({ source: processedPath }, { caption: '✅ Here is your processed video!' });
-
-      // Optionally delete the processed files after sending them
-      fs.unlinkSync(downloadedPath); // Delete the original video
-      fs.unlinkSync(processedPath); // Delete the final video
-      fs.unlinkSync(screenshotPath); // Delete the screenshot
     });
-  } catch (err) {
-    console.error('❌ Error processing video:', err);
-    await ctx.reply('❌ Failed to process video. Please try again later.');
+  } catch (error) {
+    console.error(error);
+    ctx.reply('An error occurred while processing the video');
   }
 });
 
-bot.launch();
-console.log('🤖 Bot is running...');
+bot.launch().then(() => {
+  console.log('Bot is running');
+});
+
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));

@@ -1,2 +1,0 @@
-file 'C:\Users\user\Documents\VideoBot\output\a28459d3-e68f-4f81-a6b2-906c603e47c5_normalized.mp4'
-file 'C:\Users\user\Documents\VideoBot\output\a28459d3-e68f-4f81-a6b2-906c603e47c5_banner.mp4'
