@@ -58,34 +58,33 @@ for FILE in "$VIDEOS_FOLDER_ABS"/*.mp4 "$VIDEOS_FOLDER_ABS"/*.mov; do
 
     echo "📐 Resolution: ${WIDTH}x${HEIGHT}"
 
-    if (( WIDTH > HEIGHT )); then # horizontal video
-        FONT_SCALE="w*0.025"
-    else # vertical video
-        FONT_SCALE="w*0.04"
-    fi
+    FONT_SIZE_MAIN=$((HEIGHT / 20))
+    FONT_SIZE_SUB=$((HEIGHT / 24))
+    FONT_SIZE_LINK=$((HEIGHT / 16))
+    FONT_SIZE_SMALL=$((HEIGHT / 28))
 
     # 🔤 Apply animated text overlay
     PROCESSED="$VIDEOS_FOLDER_ABS/${BASENAME}_processed.mp4"
-    ffmpeg -y -err_detect ignore_err -i "$NORMALIZED" -vf "drawtext=fontfile=$FONT_ABS:text='$TEXT3':fontcolor=white:fontsize=$FONT_SCALE:borderw=3:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=5:x=abs((w-text_w)*0.5*(1+sin(2*PI*t*0.02))):y=abs((h-text_h)*0.5*(1+cos(2*PI*t*0.02)))" -c:v libx264 -preset slow -crf 18 -c:a aac -b:a 192k "$PROCESSED"
+    ffmpeg -y -err_detect ignore_err -i "$NORMALIZED" -vf "drawtext=fontfile=$FONT_ABS:text='$TEXT3':fontcolor=white:fontsize=w*0.04:borderw=3:bordercolor=black:box=1:boxcolor=black@0.5:boxborderw=5:x=abs((w-text_w)*0.5*(1+sin(2*PI*t*0.02))):y=abs((h-text_h)*0.5*(1+cos(2*PI*t*0.02)))" -c:v libx264 -preset slow -crf 18 -c:a aac -b:a 192k "$PROCESSED"
 
     # 🧩 Create banner with logo + text
     BANNER="$VIDEOS_FOLDER_ABS/${BASENAME}_banner.mp4"
     if (( WIDTH > HEIGHT )); then # horizontal video
         ffmpeg -y -f lavfi -t 5 -i "color=${BANNER_BG_COLOR}:s=${WIDTH}x${HEIGHT}:r=30" -i "$LOGO_ABS" \
             -filter_complex "[1:v][0:v]scale2ref=w=ih*0.8:h=ih/4[logo][base]; \
-            [base][logo]overlay=(W-w)/2:H*0.08[video]; \
-            [video]drawtext=fontfile=$FONT_ABS:text='$TEXT1':fontcolor=${TEXT_COLOR}:fontsize=H*0.05:x=(w-text_w)/2:y=H*0.35, \
-            drawtext=fontfile=$FONT_ABS:text='$TEXT2':fontcolor=${TEXT_COLOR}:fontsize=H*0.05:x=(w-text_w)/2:y=H*0.42, \
-            drawtext=fontfile=$FONT_BOLD_ABS:text='$TEXT3':fontcolor=${TEXT_COLOR}:fontsize=H*0.06:x=(w-text_w)/2:y=H*0.55, \
-            drawtext=fontfile=$FONT_ABS:text='$TEXT4':fontcolor=${TEXT_COLOR}:fontsize=H*0.04:x=(w-text_w)/2:y=H*0.68" \
+            [base][logo]overlay=(W-w)/2:h*0.08[video]; \
+            [video]drawtext=fontfile=$FONT_ABS:text='Per altri video (quasi) gratis':fontcolor=${TEXT_COLOR}:fontsize=${FONT_SIZE_MAIN}:x=(w-text_w)/2:y=h*0.35, \
+            drawtext=fontfile=$FONT_ABS:text='passa a trovarci su\\:':fontcolor=${TEXT_COLOR}:fontsize=${FONT_SIZE_SUB}:x=(w-text_w)/2:y=h*0.42, \
+            drawtext=fontfile=$FONT_BOLD_ABS:text='www.pornosmezzati.it':fontcolor=${TEXT_COLOR}:fontsize=${FONT_SIZE_LINK}:x=(w-text_w)/2:y=h*0.55, \
+            drawtext=fontfile=$FONT_ABS:text='unisciti alla nostra community per risparmiare':fontcolor=${TEXT_COLOR}:fontsize=${FONT_SIZE_SMALL}:x=(w-text_w)/2:y=h*0.68" \
             -c:v libx264 -preset slow -crf 18 -an "$BANNER"
     else # vertical video
        ffmpeg -y -f lavfi -t 5 -i "color=${BANNER_BG_COLOR}:s=${WIDTH}x${HEIGHT}:r=30" -i "$LOGO_ABS" -filter_complex \
             "[1:v]scale=w=iw*min(1\,${WIDTH}/iw*0.8):h=-1[logo];[0:v][logo]overlay=x=(main_w-overlay_w)/2:y=main_h*0.15[bg]; \
-            [bg]drawtext=fontfile=$FONT_ABS:text='$TEXT1':fontcolor=${TEXT_COLOR}:fontsize=H*0.03:x=(w-text_w)/2:y=h*0.35,\
-            drawtext=fontfile=$FONT_ABS:text='$TEXT2':fontcolor=${TEXT_COLOR}:fontsize=H*0.03:x=(w-text_w)/2:y=h*0.40,\
-            drawtext=fontfile=$FONT_BOLD_ABS:text='$TEXT3':fontcolor=${TEXT_COLOR}:fontsize=H*0.04:x=(w-text_w)/2:y=h*0.48,\
-            drawtext=fontfile=$FONT_ABS:text='$TEXT4':fontcolor=${TEXT_COLOR}:fontsize=H*0.02:x=(w-text_w)/2:y=h*0.58" \
+            [bg]drawtext=fontfile=$FONT_ABS:text='$TEXT1':fontcolor=${TEXT_COLOR}:fontsize=${FONT_SIZE_MAIN}:x=(w-text_w)/2:y=h*0.35,\
+            drawtext=fontfile=$FONT_ABS:text='$TEXT2':fontcolor=${TEXT_COLOR}:fontsize=${FONT_SIZE_SUB}:x=(w-text_w)/2:y=h*0.40,\
+            drawtext=fontfile=$FONT_BOLD_ABS:text='$TEXT3':fontcolor=${TEXT_COLOR}:fontsize=${FONT_SIZE_LINK}:x=(w-text_w)/2:y=h*0.48,\
+            drawtext=fontfile=$FONT_ABS:text='$TEXT4':fontcolor=${TEXT_COLOR}:fontsize=${FONT_SIZE_SMALL}:x=(w-text_w)/2:y=h*0.58" \
             -c:v libx264 -preset slow -crf 18 -an "$BANNER"
     fi
 

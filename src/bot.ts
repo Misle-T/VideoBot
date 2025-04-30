@@ -4,6 +4,8 @@ import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { message } from 'telegraf/filters';
+
 dotenv.config();
 
 const bot = new Telegraf(process.env.BOT_TOKEN!);
@@ -24,7 +26,7 @@ bot.start((ctx) => {
   ctx.reply('Welcome! Send me a video file and I will process it for the channel.');
 });
 
-bot.on('video', async (ctx) => {
+bot.on(message('video'), async (ctx) => {
   try {
     const message = ctx.update.message;
     const fileId = message.video.file_id;
